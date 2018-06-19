@@ -128,10 +128,13 @@ void main()
 #endif
     
 #if TASK == 12 || TASK == 13
-    bool first_hit = false;
+    
     // the traversal loop,
     // termination when the sampling position is outside volume boundarys
     // another termination condition for early ray termination is added
+    bool hit = false;
+    vec3 bsearch_pos;
+
     while (inside_volume)
     {
         // get sample
@@ -143,21 +146,23 @@ void main()
         // apply the transfer functions to retrieve color and opacity
         vec4 color = texture(transfer_texture, vec2(s, s));
 
-        if (iso_dist > 0 && !first_hit) {
-            first_hit = true;
+        if (iso_dist > 0 && !hit) {
+            hit = true;
+            bsearch_pos = sampling_pos;
             dst = color;
         } 
 
         // increment the ray sampling position
         sampling_pos += ray_increment;
-#if TASK == 13 // Binary Search
-        // mark search depth
-        int depth = 0;
-        if (first_hit) {
-            depth ++;
-            sampling_pos -= ray_increment
+        
+#if TASK == 13 // binary Search
+        // restrict search depth
+        int depth = 5;
+
+        if (hit) {
+            
         }
-        IMPLEMENT;
+        
 #endif
 #if ENABLE_LIGHTNING == 1 // Add Shading
         IMPLEMENTLIGHT;
