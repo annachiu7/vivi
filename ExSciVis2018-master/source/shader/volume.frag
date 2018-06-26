@@ -47,6 +47,30 @@ get_sample_data(vec3 in_sampling_pos)
 
 }
 
+vec3
+get_gradient(vec3 samp_pos)
+{
+    //step in jede richtung:
+    float step = 1/length(vec3(volume_dimensions));
+
+
+    float x_next = get_sample_data(vec3(samp_pos.x + step, samp_pos.y, samp_pos.z));
+    float x_prev = get_sample_data(vec3(samp_pos.x - step, samp_pos.y, samp_pos.z));
+
+
+    float y_next = get_sample_data(vec3(samp_pos.x, samp_pos.y + step, samp_pos.z));
+    float y_prev = get_sample_data(vec3(samp_pos.x, samp_pos.y - step, samp_pos.z));
+
+
+    float z_next = get_sample_data(vec3(samp_pos.x, samp_pos.y, samp_pos.z + step));
+    float z_prev = get_sample_data(vec3(samp_pos.x, samp_pos.y, samp_pos.z + step));
+
+
+
+    vec3 gradient = vec3((x_next - x_prev)/2, (y_next - y_prev)/2, (z_next - z_prev)/2);
+    return gradient;
+}
+
 void main()
 {
     /// One step trough the volume
@@ -147,7 +171,7 @@ void main()
         vec4 color = texture(transfer_texture, vec2(s, s));
 
         if (iso_dist > 0 && !hit) {
-            hit = true;
+            //hit = true;
             bsearch_pos = sampling_pos;
             dst = color;
         } 
@@ -165,7 +189,39 @@ void main()
         
 #endif
 #if ENABLE_LIGHTNING == 1 // Add Shading
-        IMPLEMENTLIGHT;
+    sampling_pos -= ray_increment;
+    //phong lightning
+    if (iso_dist > 0 && !hit){
+        vec3 normal_vec = normalize(get_gradient(sampling_pos));
+
+        //Phong
+        vec3 light_vec = normalize(light_position - sampling_pos); // from point to light p-> l
+        vec3 camera_vec = normalize(camera_location - sampling_pos); // from p -> cam
+        vec3 reflectedLight_vec = normalize(-reflect(light_vec, normal_vec));
+
+        vec3 ambient_color = vec3(0.0); //color when it is not illuminated
+        vec3 diffuse_color = color.rgb; //color of mesh when it is illuminated
+        
+        // I = ambient + diffuse + sepcular
+        // ambient = light_ambient * ambient
+        vec3 ambientTerm = light_ambient_color;// * ambient_color;
+        ambientTerm = clamp(ambientTerm, 0.0, 1.0);
+
+        // diffuse = light_diffuse * diffuse * (normal * TolightVec)
+        vec3 diffuseTerm = light_diffuse_color * diffuse_color * max(dot(normal_vec, light_vec), 0.0);
+        diffuseTerm = clamp(diffuseTerm, 0.0, 1.0);
+
+        // specular = light_diffuse * specular * (reflectedLightVec * toViewVec)^lightSpec
+        vec3 specularTerm = light_specular_color * pow(max(dot(reflectedLight_vec, camera_vec), 0.0), light_ref_coef);
+        specularTerm = clamp(specularTerm, 0.0, 1.0);
+
+        //dst = vec4(ambientTerm + diffuseTerm + specularTerm, 1);
+        dst = vec4(normal_vec, 1);
+    }
+    sampling_pos += ray_increment;
+
+
+
 #if ENABLE_SHADOWING == 1 // Add Shadows
         IMPLEMENTSHADOW;
 #endif
@@ -206,4 +262,3 @@ void main()
     // return the calculated color value
     FragColor = dst;
 }
-
