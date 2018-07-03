@@ -157,7 +157,8 @@ void main()
     // termination when the sampling position is outside volume boundarys
     // another termination condition for early ray termination is added
     bool hit = false;
-    vec3 bsearch_pos;
+    vec3 accurate_samp_pos;
+    vec3 pos_next, pos_prev;
 
     while (inside_volume)
     {
@@ -172,95 +173,99 @@ void main()
 
         if (iso_dist > 0 && !hit) {
             hit = true;
-            bsearch_pos = sampling_pos;
             dst = color;
+
+        
+#if TASK == 13 // binary Search
+        // restrict search depth
+        int depth = 50;
+        float accurate_s;
+
+        pos_next = sampling_pos;
+        pos_prev = sampling_pos - ray_increment;
+
+        while (depth > 0)
+        {
+            accurate_samp_pos = (pos_next + pos_prev)/2; 
+            accurate_s = get_sample_data(accurate_samp_pos);
+            
+            //if point is inside use last point
+            if (accurate_s - iso_value > 0) {
+                pos_next = accurate_samp_pos;
+            } else {
+                pos_prev = accurate_samp_pos;
+            }
+
+            depth -= 1;
+        }
+
+        accurate_s = get_sample_data(accurate_samp_pos);
+        color = texture(transfer_texture, vec2(accurate_s,accurate_s));
+        dst = color;
+        sampling_pos = accurate_samp_pos;
+        
+
+#endif
+#if ENABLE_LIGHTNING == 1 // Add Shading
+            //phong lightning
+            vec3 normal_vec = -normalize(get_gradient(sampling_pos));
+
+            //Phong
+            vec3 light_vec = normalize(light_position - sampling_pos); // from point to light p-> l
+            vec3 camera_vec = normalize(camera_location - sampling_pos); // from p -> cam
+            vec3 reflectedLight_vec = normalize(-reflect(light_vec, normal_vec));
+            
+            vec3 ambientTerm = light_ambient_color;// * ambient_color;
+            ambientTerm = clamp(ambientTerm, 0.0, 1.0);
+
+            // diffuse = light_diffuse * diffuse * (normal * TolightVec)
+            vec3 diffuseTerm = light_diffuse_color * max(dot(normal_vec, light_vec), 0.0);
+            diffuseTerm = clamp(diffuseTerm, 0.0, 1.0);
+
+            // specular = light_diffuse * specular * (reflectedLightVec * toViewVec)^lightSpec
+            vec3 specularTerm = light_specular_color * pow(max(dot(reflectedLight_vec, camera_vec), 0.0), light_ref_coef);
+            specularTerm = clamp(specularTerm, 0.0, 1.0);
+
+            dst = vec4(ambientTerm + diffuseTerm + specularTerm, 1);
+            
+
+            //dst = vec4(light_ambient_color + diffuseTerm + light_specular_color, 1);
+            //dst = vec4(normal_vec, 1);
+
+
+#if ENABLE_SHADOWING == 1 // Add Shadows
+
+            // Same as beginning of main
+            vec3 sh_increment = light_vec * sampling_distance;
+            vec3 sh_pos  = sampling_pos + sh_increment;
+
+            bool sh_inside_volume = true;
+            bool sh_hit = false;
+            while (sh_inside_volume) {
+                // get sample
+                float s_sh = get_sample_data(sh_pos);
+                
+                float sh_iso_dist = s_sh - iso_value;
+
+                if (sh_iso_dist > 0){
+                    if (sh_hit) {
+
+                        dst = vec4(light_ambient_color, 1);
+                    }
+                    sh_hit = true;
+                }
+                // increment the sh ray pos
+                sh_pos += sh_increment;
+                sh_inside_volume = inside_volume_bounds(sh_pos);
+            }
+
+#endif
+#endif
+
         } 
 
         // increment the ray sampling position
         sampling_pos += ray_increment;
-        
-#if TASK == 13 // binary Search
-        // restrict search depth
-        int depth = 5;
-
-        if (hit) {
-            
-        }
-        
-#endif
-#if ENABLE_LIGHTNING == 1 // Add Shading
-    sampling_pos -= ray_increment;
-    //phong lightning
-    if (iso_dist > 0){
-        vec3 normal_vec = normalize(get_gradient(sampling_pos));
-
-        //Phong
-        vec3 light_vec = normalize(light_position - sampling_pos); // from point to light p-> l
-        vec3 camera_vec = normalize(camera_location - sampling_pos); // from p -> cam
-        vec3 reflectedLight_vec = normalize(-reflect(light_vec, normal_vec));
-
-        vec3 ambient_color = vec3(0.0); //color when it is not illuminated
-        vec3 diffuse_color = color.rgb; //color of mesh when it is illuminated
-        
-        // I = ambient + diffuse + sepcular
-        // ambient = light_ambient * ambient
-        
-        vec3 ambientTerm = light_ambient_color;// * ambient_color;
-        ambientTerm = clamp(ambientTerm, 0.0, 1.0);
-
-        // diffuse = light_diffuse * diffuse * (normal * TolightVec)
-        vec3 diffuseTerm = light_diffuse_color * diffuse_color * max(dot(normal_vec, light_vec), 0.0);
-        diffuseTerm = clamp(diffuseTerm, 0.0, 1.0);
-
-        // specular = light_diffuse * specular * (reflectedLightVec * toViewVec)^lightSpec
-        vec3 specularTerm = light_specular_color * pow(max(dot(reflectedLight_vec, camera_vec), 0.0), light_ref_coef);
-        specularTerm = clamp(specularTerm, 0.0, 1.0);
-
-        dst = vec4(ambientTerm + diffuseTerm + specularTerm, 1);
-        
-
-        //dst = vec4(light_ambient_color + diffuseTerm + light_specular_color, 1);
-        //dst = vec4(normal_vec, 1);
-
-         
-    }
-    sampling_pos += ray_increment;
-    
-
-
-
-#if ENABLE_SHADOWING == 1 // Add Shadows
-    
-    sampling_pos -= ray_increment;
-
-    // Same as beginning of main
-    vec3 sh_increment = normalize(light_position - sampling_pos) * sampling_distance;
-    vec3 sh_pos  = sampling_pos + sh_increment;
-
-    bool sh_inside_volume = true;
-    if (iso_dist > 0)
-    {
-        while (sh_inside_volume) {
-            // get sample
-            float s_sh = get_sample_data(sh_pos);
-            
-            float sh_iso_dist = s_sh - iso_value;
-
-            if (sh_iso_dist > 0){
-                dst = vec4(light_ambient_color, 1);
-                break;
-            }
-            // increment the sh ray pos
-            sh_pos += sh_increment;
-            sh_inside_volume = inside_volume_bounds(sh_pos);
-        }
-    }
-   
-
-    sampling_pos += ray_increment;
-
-#endif
-#endif
 
         // update the loop termination condition
         inside_volume = inside_volume_bounds(sampling_pos);
