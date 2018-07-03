@@ -294,14 +294,16 @@ void main()
         // get sample
         float s = get_sample_data(sampling_pos);
         vec4 color = texture(transfer_texture, vec2(s, s));
+        float alpha = color.a;
 #if ENABLE_OPACITY_CORRECTION == 1 // Opacity Correction
-       
+       float d  = sampling_distance / sampling_distance_ref;
+       alpha = 1 - pow((1 - alpha), d);
 #endif
 
 //#if FRONT_TO_BACK == 1        
         //intensity of sample point   intensity = color * opacity
-        inten += trans * color.rgb * color.a;
-        trans *= (1 - color.a);
+        inten += trans * color.rgb * alpha;
+        trans *= (1 - alpha);
         dst = vec4(inten, (1-trans));
         
         //increment the ray sampling position
