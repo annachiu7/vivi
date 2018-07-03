@@ -280,14 +280,14 @@ void main()
     float trans = 1.0; 
     vec3 inten = vec3(0.0, 0.0, 0.0);
 
-#if FRONT_TO_BACK == 0
-    while(inside_volume) {
-        sampling_pos += ray_increment;
-        inside_volume = inside_volume_bounds;
-    }
-    sampling_pos -= ray_increment;
-    inside_volume = true;
-#endif
+// #if FRONT_TO_BACK == 0
+//     while(inside_volume) {
+//         sampling_pos += ray_increment;
+//         inside_volume = inside_volume_bounds(sampling_pos);
+//     }
+//     sampling_pos -= 2 * ray_increment;
+//     inside_volume = true;
+// #endif
     
     while (inside_volume)
     {
@@ -299,18 +299,18 @@ void main()
 #endif
 
 //#if FRONT_TO_BACK == 1        
-        // intensity of sample point   intensity = color * opacity
-        // inten += trans * color.rgb * color.a;
-        // trans *= (1 - color.a);
-        // dst = vec4(inten, (1-trans));
+        //intensity of sample point   intensity = color * opacity
+        inten += trans * color.rgb * color.a;
+        trans *= (1 - color.a);
+        dst = vec4(inten, (1-trans));
         
-        // increment the ray sampling position
-       sampling_pos += ray_increment;
+        //increment the ray sampling position
+        sampling_pos += ray_increment;
 //#else
-        inten = color.rgb * color.a + inten * (1 - color.a);
-        dst = vec4(inten, 1.0);
+        // inten = color.rgb * color.a + inten * (1 - color.a);
+        // dst = vec4(inten, 1.0);
 
-        sampling_pos -= ray_increment;
+        // sampling_pos -= ray_increment;
 //#endif
 
 #if ENABLE_LIGHTNING == 1 // Add Shading
