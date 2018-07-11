@@ -297,9 +297,41 @@ void main()
         float alpha = color.a;
 #if ENABLE_OPACITY_CORRECTION == 1 // Opacity Correction
        float d  = sampling_distance / sampling_distance_ref;
-       alpha = 1 - pow((1 - alpha), d);
+       alpha = 1 - pow((1 - alpha), 255*d);
 #endif
 
+
+#if ENABLE_LIGHTNING == 1 // Add Shading
+
+    //phong lightning
+    vec3 normal_vec = -normalize(get_gradient(sampling_pos));
+
+    //Phong
+    vec3 light_vec = normalize(light_position - sampling_pos); // from point to light p-> l
+    vec3 camera_vec = normalize(camera_location - sampling_pos); // from p -> cam
+    vec3 reflectedLight_vec = normalize(-reflect(light_vec, normal_vec));
+    
+    vec3 ambientTerm = light_ambient_color;// * ambient_color;
+    ambientTerm = clamp(ambientTerm, 0.0, 1.0);
+
+    // diffuse = light_diffuse * diffuse * (normal * TolightVec)
+    vec3 diffuseTerm = light_diffuse_color * max(dot(normal_vec, light_vec), 0.0);
+    diffuseTerm = clamp(diffuseTerm, 0.0, 1.0);
+
+    // specular = light_diffuse * specular * (reflectedLightVec * toViewVec)^lightSpec
+    vec3 specularTerm = light_specular_color * pow(max(dot(reflectedLight_vec, camera_vec), 0.0), light_ref_coef);
+    specularTerm = clamp(specularTerm, 0.0, 1.0);
+
+    vec3 opac_lightning = vec3(ambientTerm + diffuseTerm + specularTerm);
+
+    color.rgb = opac_lightning;
+
+    //dst = vec4(light_ambient_color + diffuseTerm + light_specular_color, 1);
+    //dst = vec4(normal_vec, 1);
+
+
+#endif
+    	
 //#if FRONT_TO_BACK == 1        
         //intensity of sample point   intensity = color * opacity
         inten += trans * color.rgb * alpha;
@@ -314,12 +346,13 @@ void main()
 
         // sampling_pos -= ray_increment;
 //#endif
-
-#if ENABLE_LIGHTNING == 1 // Add Shading
-#endif
+        
+        //increment the ray sampling position
+        sampling_pos += ray_increment;
 
         // update the loop termination condition
         inside_volume = inside_volume_bounds(sampling_pos);
+
     }
 #endif 
 
