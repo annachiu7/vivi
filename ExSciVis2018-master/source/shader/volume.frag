@@ -71,6 +71,22 @@ get_gradient(vec3 samp_pos)
     return gradient;
 }
 
+
+vec4
+phong_lighting(vec3 sampling_pos, int factor)
+{
+    float s = get_sample_data(sampling_pos);
+    vec3 n = get_gradient(sampling_pos);
+    vec3 l = normalize(light_position - sampling_pos);
+    vec3 v = normalize(camera_location - sampling_pos);
+    vec3 r = normalize(reflect(l, n));
+    vec4 color = texture(transfer_texture, vec2(s, s));
+    return vec4((light_ambient_color +
+        light_diffuse_color * max(dot(l,n), 0.0) + 
+        light_specular_color * pow(max(dot(r,v),0.0), light_ref_coef)) * color.xyz * factor, 1);
+}
+
+
 void main()
 {
     /// One step trough the volume
@@ -227,10 +243,6 @@ void main()
             specularTerm = clamp(specularTerm, 0.0, 1.0);
 
             dst = vec4(ambientTerm + diffuseTerm + specularTerm, 1);
-            
-
-            //dst = vec4(light_ambient_color + diffuseTerm + light_specular_color, 1);
-            //dst = vec4(normal_vec, 1);
 
 
 #if ENABLE_SHADOWING == 1 // Add Shadows
@@ -300,35 +312,10 @@ void main()
        alpha = 1 - pow((1 - alpha), 255*d);
 #endif
 
+//vec3 opac_lightning = vec3(1.0, 1.0, 1.0);
 
 #if ENABLE_LIGHTNING == 1 // Add Shading
-
-    //phong lightning
-    vec3 normal_vec = -normalize(get_gradient(sampling_pos));
-
-    //Phong
-    vec3 light_vec = normalize(light_position - sampling_pos); // from point to light p-> l
-    vec3 camera_vec = normalize(camera_location - sampling_pos); // from p -> cam
-    vec3 reflectedLight_vec = normalize(-reflect(light_vec, normal_vec));
-    
-    vec3 ambientTerm = light_ambient_color;// * ambient_color;
-    ambientTerm = clamp(ambientTerm, 0.0, 1.0);
-
-    // diffuse = light_diffuse * diffuse * (normal * TolightVec)
-    vec3 diffuseTerm = light_diffuse_color * max(dot(normal_vec, light_vec), 0.0);
-    diffuseTerm = clamp(diffuseTerm, 0.0, 1.0);
-
-    // specular = light_diffuse * specular * (reflectedLightVec * toViewVec)^lightSpec
-    vec3 specularTerm = light_specular_color * pow(max(dot(reflectedLight_vec, camera_vec), 0.0), light_ref_coef);
-    specularTerm = clamp(specularTerm, 0.0, 1.0);
-
-    vec3 opac_lightning = vec3(ambientTerm + diffuseTerm + specularTerm);
-
-    color.rgb = opac_lightning;
-
-    //dst = vec4(light_ambient_color + diffuseTerm + light_specular_color, 1);
-    //dst = vec4(normal_vec, 1);
-
+    color = vec4(phong_lighting(sampling_pos, 10).rgb, alpha);
 
 #endif
     	
